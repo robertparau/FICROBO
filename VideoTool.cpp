@@ -9,18 +9,15 @@
 #include <sys/socket.h>
 #include <stdlib.h>
 #include <netinet/in.h>
-#include <string.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <arpa/inet.h>
 
 using namespace std;
 using namespace cv;
-//initial min and max HSV filter values.
-//these will be changed using trackbars
-int H_MIN = 0;
-int H_MAX = 256;
-int S_MIN = 0;
-int S_MAX = 256;
-int V_MIN = 0;
-int V_MAX = 256;
+
+
 //default capture width and height
 const int FRAME_WIDTH = 640;
 const int FRAME_HEIGHT = 480;
@@ -35,6 +32,8 @@ const std::string windowName1 = "HSV Image";
 const std::string windowName2 = "Thresholded Image";
 const std::string windowName3 = "After Morphological Operations";
 const std::string trackbarWindowName = "Trackbars";
+
+
 
 
 void on_mouse(int e, int x, int y, int d, void *ptr)
@@ -58,7 +57,8 @@ string intToString(int number) {
 	return ss.str();
 }
 
-void createTrackbars() {
+void createTrackbars(int &H_MIN, int &H_MAX, int &S_MIN,
+		int &S_MAX, int &V_MIN, int &V_MAX) {
 	//create window for trackbars
 
 
@@ -181,60 +181,105 @@ void trackFilteredObject(int &x, int &y, Mat threshold, Mat &cameraFeed) {
 	}
 }
 
-
-void connect(char* commands)
+void error(char *msg)
 {
-    struct sockaddr_in address;
-    int sock = 0, valread;
-    struct sockaddr_in serv_addr;
-    char buffer[1024] = {0};
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-    {
-        printf("\n Socket creation error \n");
-        return -1;
-    }
-
-    memset(&serv_addr, '0', sizeof(serv_addr));
-
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(PORT);
-
-    // Convert IPv4 and IPv6 addresses from text to binary form
-    {
-        printf("\nInvalid address/ Address not supported \n");
-        return -1;
-    }
-
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
-    {
-        printf("\nConnection Failed \n");
-        return -1;
-    }
-    send(sock , commands , strlen(commands) , 0 );
-    printf("Message sent\n");
-    //valread = read( sock , buffer, 1024);
-    //printf("%s\n",buffer );
+    perror(msg);
+    exit(1);
 }
+
+int makeSocket(char *ip , int port){
+	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+  if (sockfd < 0){
+        error("ERROR opening socket");
+  }
+  struct sockaddr_in remoteaddr;
+  remoteaddr.sin_family = AF_INET;
+  remoteaddr.sin_addr.s_addr = inet_addr(ip);
+  remoteaddr.sin_port = htons(port);
+  if(connect(sockfd, (struct sockaddr *)&remoteaddr, sizeof(remoteaddr)) < 0){
+    error("ERROR connecting");
+  }
+	return sockfd;
+}
+
+bool verify(char c){
+	if(c=='f'||c=='b'||c=='l'||c=='r'||c=='s'){
+		return true;
+	}
+	return false;
+
+}
+void control(int sockfd,char *orders){
+
+	int i=0,o_len,bytes_sent;
+	char lasto;
+	o_len=strlen(orders);
+	if(o_len>300){
+		printf("Too many orders\n");
+		return;
+	}
+	for(i=0;i<o_len;i++){
+		if (verify(orders[i])){
+			bytes_sent=send(sockfd,&orders[i],1,0);
+			if (bytes_sent != 1){
+				//eroare
+			}
+			else{
+				lasto=orders[i];
+				sleep(1);
+			}
+		}
+	}
+	if (lasto!='s'){
+		bytes_sent=send(sockfd,"s",1,0);
+	}
+	return;
+}
+
 
 int main(int argc, char* argv[])
 {
+
+	int sockfd = makeSocket("193.226.12.217",20236);
+	control(sockfd,"fslsr");
+
+/*
+
 
 	//some boolean variables for different functionality within this
 	//program
 	bool trackObjects = true;
 	bool useMorphOps = true;
-
 	Point p;
 	//Matrix to store each frame of the webcam feed
 	Mat cameraFeed;
 	//matrix storage for HSV image
-	Mat HSV;
+	Mat HSV, HSV1;
 	//matrix storage for binary threshold image
-	Mat threshold;
+	Mat threshold, threshold1;
 	//x and y values for the location of the object
 	int x = 0, y = 0;
+	int x1 = 0, y1 = 0;
 	//create slider bars for HSV filtering
-	createTrackbars();
+	//initial min and max HSV filter values.
+	//these will be changed using trackbars
+	int H_MIN = 162;
+	int H_MAX = 256;
+	int S_MIN = 0;
+	int S_MAX = 256;
+	int V_MIN = 0;
+	int V_MAX = 256;
+	//initial min and max HSV filter values.
+	//these will be changed using trackbars
+	// dusmanu'
+	int H_MIN1 = 0;
+	int H_MAX1 = 256;
+	int S_MIN1 = 110;
+	int S_MAX1 = 256;
+	int V_MIN1 = 246;
+	int V_MAX1 = 256;
+	createTrackbars(H_MIN, H_MAX, S_MIN, S_MAX, V_MIN, V_MAX);
+	createTrackbars(H_MIN1, H_MAX1, S_MIN1, S_MAX1, V_MIN1, V_MAX1);
 	//video capture object to acquire webcam feed
 	VideoCapture capture;
 	//open capture object at location zero (default location for webcam)
@@ -244,13 +289,7 @@ int main(int argc, char* argv[])
 	capture.set(CV_CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);
 	//start an infinite loop where webcam feed is copied to cameraFeed matrix
 	//all of our operations will be performed within this loop
-
-
-
-
 	while (1) {
-
-
 		//store image to matrix
 		capture.read(cameraFeed);
 		//convert frame from BGR to HSV colorspace
@@ -258,20 +297,25 @@ int main(int argc, char* argv[])
 		//filter HSV image between values and store filtered image to
 		//threshold matrix
 		inRange(HSV, Scalar(H_MIN, S_MIN, V_MIN), Scalar(H_MAX, S_MAX, V_MAX), threshold);
-		inRange(HSV, Scalar(H_MAX, S_MAX, V_MAX), Scalar(H_MIN, S_MIN, V_MIN), threshold);
+		inRange(HSV, Scalar(H_MIN1, S_MIN1, V_MIN1), Scalar(H_MAX1, S_MAX1, V_MAX1), threshold1);
 		//perform morphological operations on thresholded image to eliminate noise
 		//and emphasize the filtered object(s)
 		if (useMorphOps)
+		{
 			morphOps(threshold);
+			morphOps(threshold1);
+		}
 		//pass in thresholded frame to our object tracking function
 		//this function will return the x and y coordinates of the
 		//filtered object
 		if (trackObjects)
+		{
 			trackFilteredObject(x, y, threshold, cameraFeed);
-			trackFilteredObject(x1, y1, threshold, cameraFeed);
-
+			trackFilteredObject(x1, y1, threshold1, cameraFeed);
+		}
 		//show frames
 		imshow(windowName2, threshold);
+		imshow(windowName2, threshold1);
 		imshow(windowName, cameraFeed);
 		//imshow(windowName1, HSV);
 		setMouseCallback("Original Image", on_mouse, &p);
@@ -279,6 +323,6 @@ int main(int argc, char* argv[])
 		//image will not appear without this waitKey() command
 		waitKey(30);
 	}
-
+*/
 	return 0;
 }
