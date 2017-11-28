@@ -49,9 +49,10 @@ char *comenzi[30];
 void send_comenzi(int sockfd, char *comenzi){
   	int i, n;
   		
-  	n = send(sockfd,comenzi,strlen(comenzi),0);
+  	//n = send(sockfd,comenzi,strlen(comenzi),0);
   	
-  	n = send(sockfd,"s",1,0);
+  	n = send(sockfd,"f",1,0);
+	n = send(sockfd,"s",1,0);
   	if(n < 0) {
   		perror("ERROR writing to socket");
   		exit(3);
@@ -247,16 +248,16 @@ void trackFilteredObject(int &x, int &y, Mat threshold, Mat &cameraFeed) {
                 exit(1);
              }
              
-             //send_comenzi(sockfd,comenzi);
+             send_comenzi(sockfd,"f");
              
              int xi, yi;
              xi = x;
              yi = y;
              
-             send_comenzi(sockfd,"f"); //=> afla apoi urmatoare pozitie (cum s-a modificat x, y) => fata robotului
+             /*send_comenzi(sockfd,"f"); //=> afla apoi urmatoare pozitie (cum s-a modificat x, y) => fata robotului
              int fata;
              fata = det_pozitie(x,y,xi,yi);
-
+		*/
 			}
 
 
